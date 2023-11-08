@@ -3,37 +3,39 @@ import os
 import time
 import torch
 
+
 class Config:
     # Run a smaller config on your local machine
     local_mode = False  # Run in local mode
     # Track to run - options: reinforcement_learning, curriculum_generation
     track = "rl"
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    #record_loss = False  # log all minibatch loss and actions, for debugging
+    # record_loss = False  # log all minibatch loss and actions, for debugging
 
     # Trainer Args
     seed = 1
     num_cores = None  # Number of cores to use for training
     num_envs = 6  # Number of environments to use for training
     num_buffers = 2  # Number of buffers to use for training
-    rollout_batch_size = 2**15 # Number of steps to rollout
-    eval_batch_size = 2**15 # Number of steps to rollout for eval
-    train_num_steps = 10_000_000  # Number of steps to train
-    eval_num_steps = 1_000_000  # Number of steps to evaluate
-    checkpoint_interval = 30  # Interval to save models
+    rollout_batch_size = 2**15  # Number of steps to rollout
+    eval_batch_size = 2**15  # Number of steps to rollout for eval
+    train_num_steps = 10_000_000  # 10_000_000  # Number of steps to train
+    eval_num_steps = 1_000_000  # 1_000_000  # Number of steps to evaluate
+    checkpoint_interval = 50000  # Interval to save models
     run_name = f"nmmo_{time.strftime('%Y%m%d_%H%M%S')}"  # Run name
-    runs_dir = "/tmp/runs"  # Directory for runs
-    policy_store_dir = None # Policy store directory
+    runs_dir = "./runs"  # Directory for runs
+    policy_store_dir = None  # Policy store directory
     use_serial_vecenv = False  # Use serial vecenv implementation
     learner_weight = 1.0  # Weight of learner policy
     max_opponent_policies = 0  # Maximum number of opponent policies to train against
-    eval_num_policies = 2 # Number of policies to use for evaluation
-    eval_num_rounds = 1 # Number of rounds to use for evaluation
-    wandb_project = None  # WandB project name
-    wandb_entity = None  # WandB entity name
+    eval_num_policies = 2  # Number of policies to use for evaluation
+    eval_num_rounds = 1  # Number of rounds to use for evaluation
+    wandb_project = 'nmo_baseline_ppo'  # WandB project name
+    wandb_entity = 'saidineshpola'  # WandB entity name
 
     # PPO Args
-    bptt_horizon = 8  # Train on this number of steps of a rollout at a time. Used to reduce GPU memory.
+    # Train on this number of steps of a rollout at a time. Used to reduce GPU memory.
+    bptt_horizon = 8
     ppo_training_batch_size = 128  # Number of rows in a training batch
     ppo_update_epochs = 3  # Number of update epochs to use for training
     ppo_learning_rate = 0.00015  # Learning rate
@@ -47,11 +49,13 @@ class Config:
     num_maps = 128  # Number of maps to use for training
     maps_path = "maps/train/"  # Path to maps to use for training
     map_size = 128  # Size of maps to use for training
-    resilient_population = 0.2  # Percentage of agents to be resilient to starvation/dehydration
+    # Percentage of agents to be resilient to starvation/dehydration
+    resilient_population = 0.2
     tasks_path = None  # Path to tasks to use for training
-    eval_mode = False # Run the postprocessor in the eval mode
-    early_stop_agent_num = 8  # Stop the episode when the number of agents reaches this number
-    sqrt_achievement_rewards=False # Use the log of achievement rewards
+    eval_mode = False  # Run the postprocessor in the eval mode
+    # Stop the episode when the number of agents reaches this number
+    early_stop_agent_num = 8
+    sqrt_achievement_rewards = False  # Use the log of achievement rewards
     heal_bonus_weight = 0.03
     meander_bonus_weight = 0.02
     explore_bonus_weight = 0.01
@@ -71,6 +75,7 @@ class Config:
     def asdict(cls):
         return {attr: getattr(cls, attr) for attr in dir(cls)
                 if not callable(getattr(cls, attr)) and not attr.startswith("__")}
+
 
 def create_config(config_cls):
     parser = argparse.ArgumentParser()
