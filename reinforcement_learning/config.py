@@ -64,7 +64,7 @@ class Config:
     # Policy Args
     input_size = 256
     hidden_size = 256
-    num_lstm_layers = 0  # Number of LSTM layers to use
+    num_lstm_layers = 5  # Number of LSTM layers to use
     task_size = 4096  # Size of task embedding
     encode_task = True  # Encode task
     attend_task = "none"  # Attend task - options: none, pytorch, nikhil
