@@ -139,4 +139,4 @@ dmypy.json
 .idea/
 .vscode/
 
-./rllib-env/
+rllib-env/
