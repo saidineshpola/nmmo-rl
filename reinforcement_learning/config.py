@@ -13,7 +13,7 @@ class Config:
     # record_loss = False  # log all minibatch loss and actions, for debugging
 
     # Trainer Args
-    seed = 42
+    seed = 45
     num_cores = None  # Number of cores to use for training
     num_envs = 6  # Number of environments to use for training
     num_buffers = 2  # Number of buffers to use for training
@@ -23,7 +23,7 @@ class Config:
     eval_num_steps = 1_000_000  # 1_000_000  # Number of steps to evaluate
     checkpoint_interval = 50000  # Interval to save models
     # f"nmmo_{time.strftime('%Y%m%d_%H%M%S')}_{seed}"  # Run name
-    run_name = f"nmmo_deathfog256_seed{seed}_exp3"
+    run_name = f"nmmo_3better_conv_attention_seed{seed}_exp9"
     runs_dir = "./runs"  # Directory for runs
     policy_store_dir = None  # Policy store directory
     use_serial_vecenv = False  # Use serial vecenv implementation
@@ -46,7 +46,7 @@ class Config:
     num_agents = 128  # Number of agents to use for training
     num_npcs = 256  # Number of NPCs to use for training
     max_episode_length = 1024  # Number of steps per episode
-    death_fog_tick = 256  # Number of ticks before death fog starts
+    death_fog_tick = None  # Number of ticks before death fog starts
     num_maps = 128  # Number of maps to use for training
     maps_path = "maps/train/"  # Path to maps to use for training
     map_size = 128  # Size of maps to use for training
@@ -60,7 +60,7 @@ class Config:
     heal_bonus_weight = 0.03
     meander_bonus_weight = 0.02
     explore_bonus_weight = 0.01
-    attack_bonus_weight = 0  # 0.03
+    attack_bonus_weight = 0  # 0.03 added
     spawn_immunity = 20
 
     # Policy Args
