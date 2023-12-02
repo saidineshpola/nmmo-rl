@@ -17,6 +17,7 @@ class Config(nmmo.config.Default):
         self.PROVIDE_ACTION_TARGETS = True
         self.PROVIDE_NOOP_ACTION_TARGET = True
         self.MAP_FORCE_GENERATION = False
+        # self.MAP_GENERATE_PREVIEWS = True
         self.PLAYER_N = args.num_agents
         self.HORIZON = args.max_episode_length
         self.MAP_N = args.num_maps
@@ -40,9 +41,10 @@ class Postprocessor(StatPostprocessor):
                  sqrt_achievement_rewards=False,
                  heal_bonus_weight=0,
                  meander_bonus_weight=0,
-                 explore_bonus_weight=0,
+                 explore_bonus_weight=0.01,
                  attack_bonus_weight=0,
                  clip_unique_event=3,
+                 gold_bonus_weight=0.01,
                  ):
         super().__init__(env, agent_id, eval_mode)
         self.early_stop_agent_num = early_stop_agent_num
@@ -52,6 +54,7 @@ class Postprocessor(StatPostprocessor):
         self.explore_bonus_weight = explore_bonus_weight
         self.clip_unique_event = clip_unique_event
         self.attack_bonus_weight = attack_bonus_weight
+        self.gold_bonus_weight = gold_bonus_weight
 
     def reset(self, obs):
         '''Called at the start of each episode'''
@@ -93,16 +96,23 @@ class Postprocessor(StatPostprocessor):
         if self.agent_id in self.env.realm.players:
             if self.env.realm.players[self.agent_id].resources.health_restore > 0:
                 healing_bonus = self.heal_bonus_weight
+
         # Attacking bonus
         attack_bonus = 0
+        gold_bonus = 0  # GoldBonus
         if self.agent_id in self.env.realm.players:
             log = self.env.realm.event_log.get_data(agents=[self.agent_id],
                                                     event_code=EventCode.PLAYER_KILL,
                                                     tick=self.env.realm.tick)
-
             if log.shape[0] > 0 and log[0][-1] > 0:
-                # print('log', log[-1], 'agent_id', self.agent_id, )
                 attack_bonus = self.attack_bonus_weight
+
+            log = self.env.realm.event_log.get_data(agents=[self.agent_id],
+                                                    event_code=EventCode.EARN_GOLD,
+                                                    tick=self.env.realm.tick)
+            if log.shape[0] > 0 and log[0][-2] > 0:
+                # print('gold log', log, 'agent_id', self.agent_id, )
+                gold_bonus = self.gold_bonus_weight
 
         # Add meandering bonus to encourage moving to various directions
         meander_bonus = 0
@@ -121,7 +131,8 @@ class Postprocessor(StatPostprocessor):
                                 self._curr_unique_count - self._prev_unique_count)
         explore_bonus *= self.explore_bonus_weight
 
-        reward = reward + explore_bonus + healing_bonus + meander_bonus + attack_bonus
+        reward = reward + explore_bonus + healing_bonus + \
+            meander_bonus + attack_bonus + gold_bonus
 
         return reward, done, info
 
@@ -141,6 +152,7 @@ def make_env_creator(args: Namespace):
                                                           'meander_bonus_weight': args.meander_bonus_weight,
                                                           'explore_bonus_weight': args.explore_bonus_weight,
                                                           'attack_bonus_weight': args.attack_bonus_weight,
+                                                          'gold_bonus_weight': args.gold_bonus_weight,
                                                       },
                                                       )
         return env

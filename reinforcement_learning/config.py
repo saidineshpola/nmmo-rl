@@ -23,7 +23,7 @@ class Config:
     eval_num_steps = 1_000_000  # 1_000_000  # Number of steps to evaluate
     checkpoint_interval = 50000  # Interval to save models
     # f"nmmo_{time.strftime('%Y%m%d_%H%M%S')}_{seed}"  # Run name
-    run_name = f"nmmo_3better_conv_attention_seed{seed}_exp9"
+    run_name = f"nmmo_c3_new_maps_seed{seed}_exp10"
     runs_dir = "./runs"  # Directory for runs
     policy_store_dir = None  # Policy store directory
     use_serial_vecenv = False  # Use serial vecenv implementation
@@ -60,6 +60,7 @@ class Config:
     heal_bonus_weight = 0.03
     meander_bonus_weight = 0.02
     explore_bonus_weight = 0.01
+    gold_bonus_weight = 0
     attack_bonus_weight = 0  # 0.03 added
     spawn_immunity = 20
 

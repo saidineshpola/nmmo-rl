@@ -1,82 +1,72 @@
-
-
-import torch.nn as nn
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.nn.init as init
 
 
-class CCT(nn.Module):
-    """
-        Compact Convolutional Transformer (CCT) Model
-        https://arxiv.org/abs/2104.05704v4
-    """
-
-    def __init__(
-        self,
-        conv_kernel: int = 3, conv_stride: int = 2, conv_pad: int = 3,
-        pool_kernel: int = 3, pool_stride: int = 2, pool_pad: int = 1,
-        heads: int = 4, emb_dim: int = 256, feat_dim: int = 2*256,
-        dropout: float = 0.0, attention_dropout: float = 0.0, layers: int = 7,
-        channels: int = 3, image_size: int = 32, num_class: int = 256
-    ):
+class MultiHeadSelfAttention(nn.Module):
+    def __init__(self, dim=81, num_heads=4):
         super().__init__()
-        self.emb_dim = emb_dim
-        self.image_size = image_size
+        self.dim = dim
+        self.scale = self.dim ** -0.5
+        self.num_heads = num_heads
+        self.qkv = nn.Linear(dim, 3 * dim, bias=False)
+        self.proj = nn.Linear(dim, dim, bias=False)
 
-        self.tokenizer = ConvTokenizer(
-            channels=channels, emb_dim=self.emb_dim,
-            conv_kernel=conv_kernel, conv_stride=conv_stride, conv_pad=conv_pad,
-            pool_kernel=pool_kernel, pool_stride=pool_stride, pool_pad=pool_pad,
-            activation=nn.ReLU
-        )
+        # Orthogonal initialization of weights
+        init.orthogonal_(self.qkv.weight)
+        init.orthogonal_(self.proj.weight)
 
-        with torch.no_grad():
-            x = torch.randn([1, channels, image_size, image_size])
-            out = self.tokenizer(x)
-            _, _, ph_c, pw_c = out.shape
+        # Constant initialization of biases
+        if self.qkv.bias is not None:
+            init.constant_(self.qkv.bias, 0)
+        if self.proj.bias is not None:
+            init.constant_(self.proj.bias, 0)
 
-        self.linear_projection = nn.Linear(
-            ph_c, pw_c, self.emb_dim
-        )
+    def forward(self, inputs, mask=None):
+        qkv = self.qkv(inputs).reshape(
+            inputs.shape[0], -1, 4, self.num_heads, self.dim // self.num_heads).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]
 
-        self.pos_emb = nn.Parameter(
-            torch.randn(
-                [1, ph_c*pw_c, self.emb_dim]
-            ).normal_(std=0.02)  # from torchvision, which takes this from BERT
-        )
-        self.dropout = nn.Dropout(dropout)
-        encoders = []
-        for _ in range(0, layers):
-            encoders.append(
-                TransformerEncoderBlock(
-                    n_h=heads, emb_dim=self.emb_dim, feat_dim=feat_dim,
-                    dropout=dropout, attention_dropout=attention_dropout
-                )
-            )
-        self.encoder_stack = nn.Sequential(*encoders)
-        self.seq_pool = SeqPool(emb_dim=self.emb_dim)
-        self.mlp_head = nn.Linear(self.emb_dim, num_class)
+        attn = (q @ k.transpose(-2, -1)) * self.scale
 
-    def forward(self, x: torch.Tensor):
-        bs, c, h, w = x.shape  # (bs, c, h, w)
+        if mask is not None:
+            mask = mask[:, None, None, :]
 
-        # Creates overlapping patches using ConvNet
-        x = self.tokenizer(x)
-        x = rearrange(
-            x, 'bs e_d ph_h ph_w -> bs (ph_h ph_w) e_d',
-            bs=bs, e_d=self.emb_dim
-        )
+        attn = F.softmax(attn, dim=-1)
 
-        # Add position embedding
-        x = self.pos_emb.expand(bs, -1, -1) + x
-        x = self.dropout(x)
+        x = (attn @ v).transpose(1, 2).reshape(inputs.shape[0], -1, self.dim)
+        x = self.proj(x)
+        return x
 
-        # Pass through Transformer Encoder layers
-        x = self.encoder_stack(x)
 
-        # Perform Sequential Pooling <- Novelty of the paper
-        x = self.seq_pool(x)
+class TransformerBlock(nn.Module):
+    def __init__(self, dim=81, num_heads=3, expand=1, activation=F.relu):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
+        self.attn = MultiHeadSelfAttention(dim=dim, num_heads=num_heads)
+        self.norm2 = nn.LayerNorm(dim, eps=1e-6)
+        self.fc1 = nn.Linear(dim, dim * expand, )
+        self.fc2 = nn.Linear(dim * expand, dim, )
+        self.activation = activation
+        # Orthogonal initialization of weights
+        init.orthogonal_(self.fc1.weight)
+        init.orthogonal_(self.fc2.weight)
 
-        # MLP head used to get logits
-        x = self.mlp_head(x)
+        # # Constant initialization of biases
+        # if self.fc1.bias is not None:
+        #     init.constant_(self.fc1.bias, 0)
+        # if self.fc2.bias is not None:
+        #     init.constant_(self.fc2.bias, 0)
 
+    def forward(self, inputs):
+        x = self.norm1(inputs)
+        x = self.attn(x)
+        attn_out = x
+
+        x = self.norm2(x)
+        x = self.fc1(x)
+        x = self.activation(x)
+        x = self.fc2(x)
+        x = x + attn_out
         return x

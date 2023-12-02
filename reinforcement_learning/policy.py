@@ -1,5 +1,4 @@
 from torch.nn import MultiheadAttention
-from reinforcement_learning.model_util import CCT
 import argparse
 import torch
 import torch.nn.functional as F
@@ -110,6 +109,7 @@ class TileEncoder(torch.nn.Module):
         # Tile Shape after conv2:  torch.Size([768, 8, 11, 11])
         # Tile Shape after conv3:  torch.Size([768, 4, 9, 9])
         self.tile_fc = torch.nn.Linear(16 * 9 * 9, input_size)
+        self.activation = torch.nn.ReLU()
 
     def forward(self, tile):
         tile[:, :, :2] -= tile[:, 112:113, :2].clone()
@@ -125,16 +125,16 @@ class TileEncoder(torch.nn.Module):
             .view(agents, features * embed, 15, 15)
         )
 
-        tile = F.selu(self.tile_conv_1(tile))
-        tile = F.selu(self.tile_conv_2(tile))
-        tile = F.selu(self.tile_conv_3(tile))  # Additional layer
+        tile = self.activation(self.tile_conv_1(tile))
+        tile = self.activation(self.tile_conv_2(tile))
+        tile = self.activation(self.tile_conv_3(tile))  # Additional layer
         # Reshape for MultiheadAttention
         tile = tile.view(tile.size(0), tile.size(1), -1).permute(2, 0, 1)
         tile, _ = self.multihead_attn(
             tile, tile, tile)  # Apply MultiheadAttention
         tile = tile.permute(1, 2, 0).view(agents, 16, 9, 9)  # Reshape back
         tile = tile.contiguous().view(agents, -1)
-        tile = F.selu(self.tile_fc(tile))
+        tile = self.activation(self.tile_fc(tile))
 
         return tile
 
@@ -245,24 +245,26 @@ class MarketEncoder(torch.nn.Module):
         return self.fc(market).mean(-2)
 
 
+# class TaskEncoder(torch.nn.Module):
+#     def __init__(self, input_size, hidden_size, task_size):
+#         super().__init__()
+#         self.fc1 = torch.nn.Linear(task_size, hidden_size)
+#         self.fc2 = torch.nn.Linear(hidden_size, input_size)
+#         self.relu = torch.nn.ReLU()
+#         self.dropout = torch.nn.Dropout(0.2)
+
+#     def forward(self, task):
+#         x = self.relu(self.fc1(task))
+#         # x = self.dropout(x)
+#         encoded_task = self.fc2(x)
+#         return encoded_task
 class TaskEncoder(torch.nn.Module):
     def __init__(self, input_size, hidden_size, task_size):
         super().__init__()
-        self.fc1 = torch.nn.Linear(task_size, hidden_size)
-        self.bn1 = torch.nn.BatchNorm1d(hidden_size)
-        self.fc2 = torch.nn.Linear(hidden_size, hidden_size)
-        self.bn2 = torch.nn.BatchNorm1d(hidden_size)
-        self.fc3 = torch.nn.Linear(hidden_size, input_size)
-        self.relu = torch.nn.ReLU()
-        self.dropout = torch.nn.Dropout(0.2)
+        self.fc = torch.nn.Linear(task_size, input_size)
 
     def forward(self, task):
-        x = self.relu(self.bn1(self.fc1(task)))
-        x = self.dropout(x)
-        x = self.relu(self.bn2(self.fc2(x)))
-        x = self.dropout(x)
-        encoded_task = self.fc3(x)
-        return encoded_task
+        return self.fc(task.clone())
 
 
 class ActionDecoder(torch.nn.Module):
