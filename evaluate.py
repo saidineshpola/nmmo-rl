@@ -68,7 +68,7 @@ def save_replays(policy_store_dir, save_dir, curriculum_file, task_to_assign=Non
     from reinforcement_learning import rl_policy  # import your policy
 
     def make_policy(envs):
-        learner_policy = rl_policy.Baseline(
+        learner_policy = rl_policy.BaselineNew(
             envs.driver_env,
             input_size=args.input_size,
             hidden_size=args.hidden_size,

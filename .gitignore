@@ -140,3 +140,5 @@ dmypy.json
 .vscode/
 
 rllib-env/
+runs/
+wandb/
