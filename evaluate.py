@@ -65,10 +65,10 @@ def save_replays(policy_store_dir, save_dir, curriculum_file, task_to_assign=Non
     args.tasks_path = curriculum_file  # task-conditioning
 
     # NOTE: This creates a dummy learner agent. Is it necessary?
-    from reinforcement_learning import policy  # import your policy
+    from reinforcement_learning import rl_policy  # import your policy
 
     def make_policy(envs):
-        learner_policy = policy.Baseline(
+        learner_policy = rl_policy.Baseline(
             envs.driver_env,
             input_size=args.input_size,
             hidden_size=args.hidden_size,
@@ -211,10 +211,10 @@ def rank_policies(policy_store_dir, eval_curriculum_file, device):
     args.tasks_path = eval_curriculum_file  # task-conditioning
 
     # NOTE: This creates a dummy learner agent. Is it necessary?
-    from reinforcement_learning import policy  # import your policy
+    from reinforcement_learning import rl_policy  # import your policy
 
     def make_policy(envs):
-        learner_policy = policy.Baseline(
+        learner_policy = rl_policy.Baseline(
             envs.driver_env,
             input_size=args.input_size,
             hidden_size=args.hidden_size,

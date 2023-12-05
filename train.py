@@ -1,14 +1,13 @@
 import os
 import logging
 import torch
-
 from pufferlib.vectorization import Serial, Multiprocessing
 from pufferlib.policy_store import DirectoryPolicyStore
 from pufferlib.frameworks import cleanrl
 
 import environment
 
-from reinforcement_learning import clean_pufferl, policy, config
+from reinforcement_learning import clean_pufferl, config, rl_policy
 
 # NOTE: this file changes when running curriculum generation track
 # Run test_task_encoder.py to regenerate this file (or get it from the repo)
@@ -29,7 +28,7 @@ def setup_env(args):
         policy_store = DirectoryPolicyStore(args.policy_store_dir)
 
     def make_policy(envs):
-        learner_policy = policy.Baseline(
+        learner_policy = rl_policy.BaselineNew(
             envs.driver_env,
             input_size=args.input_size,
             hidden_size=args.hidden_size,
