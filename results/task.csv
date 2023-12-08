@@ -1,0 +1,9 @@
+Task,Number of agents completed the task,Average maximum progress,Average completed tick
+Task_CountEvent_(event:HARVEST_ITEM_N:10)_reward_to:agent,29,0.39453125,276.44827586206895
+Task_CountEvent_(event:BUY_ITEM_N:10)_reward_to:agent,16,0.2046875,518.1875
+Task_CountEvent_(event:GIVE_GOLD_N:10)_reward_to:agent,0,0.047656250000000004,
+Task_CountEvent_(event:LIST_ITEM_N:10)_reward_to:agent,36,0.375,228.16666666666666
+Task_CountEvent_(event:GIVE_ITEM_N:10)_reward_to:agent,0,0.0015625,
+Task_AttainSkill_(skill:Melee_level:10_num_agent:1)_reward_to:agent,0,0.04513888888888889,
+Task_AttainSkill_(skill:Fishing_level:10_num_agent:1)_reward_to:agent,0,0.026909722222222224,
+Task_AttainSkill_(skill:Herbalism_level:10_num_agent:1)_reward_to:agent,0,0.040798611111111105,
