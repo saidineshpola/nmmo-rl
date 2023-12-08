@@ -124,13 +124,14 @@ class TileEncoder(torch.nn.Module):
         self.tile_offset = torch.tensor([i * 256 for i in range(3)])
         self.embedding = torch.nn.Embedding(3 * 256, 32)
 
-        self.multihead_attn = MultiheadAttention(
-            16, 4)  # Added MultiheadAttention layer
-
+        # self.multihead_attn = MultiheadAttention(
+        #     16, 4)  # Added MultiheadAttention layer
+        self.attn = SelfAttention(16, 4)
         self.tile_conv_1 = torch.nn.Conv2d(96, 64, 3)
         self.tile_conv_2 = torch.nn.Conv2d(64, 32, 3)
         self.tile_conv_3 = torch.nn.Conv2d(32, 16, 3)
-        self.tile_fc = torch.nn.Linear(16 * 9 * 9, input_size)
+        # self.tile_fc = torch.nn.Linear(16 * 9 * 9, input_size)
+        self.tile_attn_fc = torch.nn.Linear(144 * 9 * 9, input_size)
         self.activation = torch.nn.ReLU()
 
     def forward(self, tile):
@@ -150,13 +151,14 @@ class TileEncoder(torch.nn.Module):
         tile = self.activation(self.tile_conv_1(tile))
         tile = self.activation(self.tile_conv_2(tile))
         tile = self.activation(self.tile_conv_3(tile))  # Additional layer
-        # Reshape for MultiheadAttention
-        tile = tile.view(tile.size(0), tile.size(1), -1).permute(2, 0, 1)
-        tile, _ = self.multihead_attn(
-            tile, tile, tile)  # Apply MultiheadAttention
-        tile = tile.permute(1, 2, 0).view(agents, 16, 9, 9)  # Reshape back
+        # change the shape of tile to (agents, 16, 81) and then transpose to make 81,16
+        tile = tile.contiguous().view(agents, 81, 16)
+
+        tile_features = self.attn(tile)
+        tile = torch.cat([tile, tile_features], dim=-1)
         tile = tile.contiguous().view(agents, -1)
-        tile = self.activation(self.tile_fc(tile))
+        tile = self.activation(self.tile_attn_fc(tile))
+        tile = tile.contiguous().view(agents, -1)
 
         return tile
 
@@ -171,6 +173,7 @@ class PlayerEncoder(torch.nn.Module):
 
         self.agent_fc = torch.nn.Linear(self.entity_dim * 32, hidden_size)
         self.my_agent_fc = torch.nn.Linear(self.entity_dim * 32, input_size)
+        self.attn = SelfAttention(992, 4, 248)
 
     def forward(self, agents, my_id):
         # Pull out rows corresponding to the agent
@@ -185,10 +188,17 @@ class PlayerEncoder(torch.nn.Module):
         agent_embeddings = self.embedding(
             agents.long().clip(0, 255) + self.player_offset.to(agents.device)
         )
-        batch, agent, attrs, embed = agent_embeddings.shape
+        agent_embeddings = agent_embeddings.view(
+            agents.shape[0], agents.shape[1], agent_embeddings.shape[-1] *
+            agent_embeddings.shape[-2]
+        )
+        # agent_embeddings before torch.Size([768, 100, 992])
+        agent_embeddings = self.attn(agent_embeddings)
+
+        # batch, agent, attrs, embed = agent_embeddings.shape
 
         # Embed each feature separately
-        agent_embeddings = agent_embeddings.view(batch, agent, attrs * embed)
+        # agent_embeddings = agent_embeddings.view(batch, agent, attrs * embed)
         my_agent_embeddings = agent_embeddings[
             torch.arange(agents.shape[0]), row_indices
         ]
@@ -267,6 +277,19 @@ class MarketEncoder(torch.nn.Module):
         return self.fc(market).mean(-2)
 
 
+# class TaskEncoder(torch.nn.Module):
+#     def __init__(self, input_size, hidden_size, task_size):
+#         super().__init__()
+#         self.fc1 = torch.nn.Linear(task_size, hidden_size)
+#         self.fc2 = torch.nn.Linear(hidden_size, input_size)
+#         self.relu = torch.nn.ReLU()
+#         self.dropout = torch.nn.Dropout(0.2)
+
+#     def forward(self, task):
+#         x = self.relu(self.fc1(task))
+#         # x = self.dropout(x)
+#         encoded_task = self.fc2(x)
+#         return encoded_task
 class TaskEncoder(torch.nn.Module):
     def __init__(self, input_size, hidden_size, task_size):
         super().__init__()
@@ -295,9 +318,6 @@ class ActionDecoder(torch.nn.Module):
                 "inventory_use": torch.nn.Linear(hidden_size, hidden_size),
             }
         )
-        self.attn = SelfAttention(hidden_size, 4, hidden_size//4)
-        self.fc = torch.nn.Linear(hidden_size * 2, hidden_size)
-        self.activation = torch.nn.ReLU()
 
     def apply_layer(self, layer, embeddings, mask, hidden):
         hidden = layer(hidden)
@@ -316,33 +336,7 @@ class ActionDecoder(torch.nn.Module):
             market_embeddings,
             action_targets,
         ) = lookup
-        # player_embeddings.shape:  torch.Size([768, 100, 256])
-        # inventory_embeddings.shape:  torch.Size([768, 12, 256])
-        # market_embeddings.shape:  torch.Size([768, 1024, 256])
-        # hidden.shape:  torch.Size([768, 256])
 
-        player_embeddings_before = player_embeddings.clone()
-        inventory_embeddings_before = inventory_embeddings.clone()
-        hidden_before = hidden.clone()
-
-        player_embeddings = self.attn(player_embeddings)
-        inventory_embeddings = self.attn(inventory_embeddings)
-        hidden = hidden.unsqueeze(1)
-        hidden = self.attn(hidden)
-        hidden = hidden.squeeze(1)
-
-        player_embeddings = torch.cat(
-            [player_embeddings_before, player_embeddings], dim=-1)
-        inventory_embeddings = torch.cat(
-            [inventory_embeddings_before, inventory_embeddings], dim=-1)
-        hidden = torch.cat([hidden_before, hidden], dim=-1)
-        # print("Afterplayer_embeddings.shape: ", player_embeddings.shape)
-        # print("After inventory_embeddings.shape: ", inventory_embeddings.shape)
-        # print("After hidden.shape: ", hidden.shape)
-        # now can you use MLP to get the same shape as before as concat increases the shapes
-        player_embeddings = self.activation(self.fc(player_embeddings))
-        inventory_embeddings = self.activation(self.fc(inventory_embeddings))
-        hidden = self.activation(self.fc(hidden))
         embeddings = {
             "attack_target": player_embeddings,
             "market_buy": market_embeddings,

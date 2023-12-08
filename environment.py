@@ -122,10 +122,10 @@ class Postprocessor(StatPostprocessor):
             hlog = self.env.realm.event_log.get_data(agents=[self.agent_id],
                                                      event_code=EventCode.HARVEST_ITEM,
                                                      tick=self.env.realm.tick)
-            if llog.shape[0] > 0 and llog[0][-4] > 0:
-                # print('\033[93m' + 'level up log', log,
-                #       'agent_id', self.agent_id, '\033[0m')
-                level_bonus = 0.01
+            # if llog.shape[0] > 0 and llog[0][-4] > 0:
+            #     # print('\033[93m' + 'level up log', log,
+            #     #       'agent_id', self.agent_id, '\033[0m')
+            #     level_bonus = 0.01
             if hlog.shape[0] > 0 and hlog[0][-3] > 0:
                 # print('\033[94m' + 'harvest log', log,
                 #       'agent_id', self.agent_id, '\033[0m')
