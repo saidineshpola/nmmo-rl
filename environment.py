@@ -101,6 +101,7 @@ class Postprocessor(StatPostprocessor):
         attack_bonus = 0
         gold_bonus = 0  # GoldBonus
         harvest_bonus = 0
+        give_bonus = 0
         level_bonus = 0
         if self.agent_id in self.env.realm.players:
             log = self.env.realm.event_log.get_data(agents=[self.agent_id],
@@ -119,16 +120,25 @@ class Postprocessor(StatPostprocessor):
             llog = self.env.realm.event_log.get_data(agents=[self.agent_id],
                                                      event_code=EventCode.LEVEL_UP,
                                                      tick=self.env.realm.tick)
-            hlog = self.env.realm.event_log.get_data(agents=[self.agent_id],
-                                                     event_code=EventCode.HARVEST_ITEM,
-                                                     tick=self.env.realm.tick)
-            # if llog.shape[0] > 0 and llog[0][-4] > 0:
-            #     # print('\033[93m' + 'level up log', log,
-            #     #       'agent_id', self.agent_id, '\033[0m')
-            #     level_bonus = 0.01
-            if hlog.shape[0] > 0 and hlog[0][-3] > 0:
-                # print('\033[94m' + 'harvest log', log,
+            harvest_log = self.env.realm.event_log.get_data(agents=[self.agent_id],
+                                                            event_code=EventCode.HARVEST_ITEM,
+                                                            tick=self.env.realm.tick)
+            give_log = self.env.realm.event_log.get_data(agents=[self.agent_id],
+                                                         event_code=EventCode.GIVE_ITEM,
+                                                         tick=self.env.realm.tick)
+            give_gold_log = self.env.realm.event_log.get_data(agents=[self.agent_id],
+                                                              event_code=EventCode.GIVE_GOLD,
+                                                              tick=self.env.realm.tick)
+            # Combat, Fishing  Skills
+            if llog.shape[0] > 0 and llog[0][-4] > 0 and (llog[0][-5] in range(1, 5)):
+                # print('\033[93m' + 'level up log', llog,
                 #       'agent_id', self.agent_id, '\033[0m')
+                level_bonus = 0.01
+            if give_log.shape[0] > 0 and give_log[0][-3] > 0:
+                give_bonus = 0.03
+            if give_gold_log.shape[0] > 0 and give_gold_log[0][-3] > 0:
+                give_bonus = 0.03
+            if harvest_log.shape[0] > 0 and harvest_log[0][-3] > 0:
                 harvest_bonus = 0.01
 
         # Add meandering bonus to encourage moving to various directions
@@ -149,7 +159,8 @@ class Postprocessor(StatPostprocessor):
         explore_bonus *= self.explore_bonus_weight
 
         reward = reward + explore_bonus + healing_bonus + \
-            meander_bonus + attack_bonus + gold_bonus + harvest_bonus+level_bonus
+            meander_bonus + attack_bonus + gold_bonus + \
+            harvest_bonus+level_bonus + give_bonus
 
         return reward, done, info
 

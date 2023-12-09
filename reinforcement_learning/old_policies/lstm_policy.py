@@ -302,6 +302,15 @@ class ActionDecoder(torch.nn.Module):
         )
         self.attn = SelfAttention(hidden_size, 4, hidden_size//4)
         self.fc = torch.nn.Linear(hidden_size * 2, hidden_size)
+        self.rnn = torch.nn.LSTM(
+            input_size=hidden_size,
+            hidden_size=hidden_size,
+            num_layers=5,
+            batch_first=True,
+        )
+        self.prev_player_states = None
+        self.prev_inventory_states = None
+        self.prev_hidden_states = None
 
     def apply_layer(self, layer, embeddings, mask, hidden):
         hidden = layer(hidden)
@@ -328,11 +337,35 @@ class ActionDecoder(torch.nn.Module):
         player_embeddings_before = player_embeddings.clone()
         inventory_embeddings_before = inventory_embeddings.clone()
         hidden_before = hidden.clone()
-        hidden = hidden.unsqueeze(1)  # make it 3d shape for self attn
+        hidden = hidden.unsqueeze(1)
+        # Check for the prev states shape
+        if self.prev_player_states is None or self.prev_player_states[0].shape != (self.rnn.num_layers, player_embeddings.shape[0], self.rnn.hidden_size):
+            h_0 = torch.zeros(
+                self.rnn.num_layers, player_embeddings.shape[0], self.rnn.hidden_size, device=player_embeddings.device)
+            c_0 = torch.zeros(
+                self.rnn.num_layers, player_embeddings.shape[0], self.rnn.hidden_size, device=player_embeddings.device)
+            self.prev_player_states = (h_0, c_0)
+        if self.prev_inventory_states is None or self.prev_inventory_states[0].shape != (self.rnn.num_layers, inventory_embeddings.shape[0], self.rnn.hidden_size):
+            h_0 = torch.zeros(
+                self.rnn.num_layers, inventory_embeddings.shape[0], self.rnn.hidden_size, device=inventory_embeddings.device)
+            c_0 = torch.zeros(
+                self.rnn.num_layers, inventory_embeddings.shape[0], self.rnn.hidden_size, device=inventory_embeddings.device)
+            self.prev_inventory_states = (h_0, c_0)
+        if self.prev_hidden_states is None or self.prev_hidden_states[0].shape != (self.rnn.num_layers, hidden.shape[0], self.rnn.hidden_size):
+            h_0 = torch.zeros(
+                self.rnn.num_layers, hidden.shape[0], self.rnn.hidden_size, device=hidden.device)
+            c_0 = torch.zeros(
+                self.rnn.num_layers, hidden.shape[0], self.rnn.hidden_size, device=hidden.device)
+            self.prev_hidden_states = (h_0, c_0)
+        player_embeddings, self.prev_player_states = self.rnn(
+            player_embeddings, self.prev_player_states)
+        inventory_embeddings, self.prev_inventory_states = self.rnn(
+            inventory_embeddings, self.prev_inventory_states)
 
         player_embeddings = self.attn(player_embeddings)
         inventory_embeddings = self.attn(inventory_embeddings)
-
+        hidden, self.prev_hidden_states = self.rnn(
+            hidden, self.prev_hidden_states)
         hidden = self.attn(hidden)
         hidden = hidden.squeeze(1)
         # Concat before and after attention and use MLP (advise communicaion) to get same shape as before

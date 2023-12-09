@@ -13,7 +13,7 @@ class Config:
     # record_loss = False  # log all minibatch loss and actions, for debugging
 
     # Trainer Args
-    seed = 17
+    seed = 9
     num_cores = None  # Number of cores to use for training
     num_envs = 6  # Number of environments to use for training
     num_buffers = 2  # Number of buffers to use for training
@@ -23,7 +23,7 @@ class Config:
     eval_num_steps = 1_000_000  # 1_000_000  # Number of steps to evaluate
     checkpoint_interval = 5_000_000  # Interval to save models
     # f"nmmo_{time.strftime('%Y%m%d_%H%M%S')}_{seed}"  # Run name
-    run_name = f"test_nmmo_all_attn_hv_bonus_seed{seed}_exp15"
+    run_name = f"nmmo_rp_cr_attn_skill_bonus_seed{seed}_exp17"
     runs_dir = "./runs"  # Directory for runs
     policy_store_dir = None  # Policy store directory
     use_serial_vecenv = False  # Use serial vecenv implementation

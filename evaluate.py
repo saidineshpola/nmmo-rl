@@ -158,6 +158,15 @@ def save_replays(policy_store_dir, save_dir, curriculum_file, task_to_assign=Non
     avg_completed_tick = np.mean([task.progress_info["completed_tick"]
                                   for task in nmmo_env.tasks if task.completed])
     print(f"Average completed tick: {avg_completed_tick:.1f}")
+    # can you save it inside csv with above 4 lines?
+    print("--------------------------------------------------")
+    df = pd.DataFrame({'Task': [nmmo_env.tasks[0].spec_name],
+                      'Number of agents completed the task': [num_completed],
+                       'Average maximum progress': [avg_progress],
+                       'Average completed tick': [avg_completed_tick]})
+    # df.to_csv(os.path.join('results', 'task.csv'), index=False)
+    with open(os.path.join('results', 'task.csv'), 'a') as f:
+        df.to_csv(f, header=False, index=False)
 
     # Save the replay file
     replay_file = os.path.join(

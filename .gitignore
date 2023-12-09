@@ -142,3 +142,4 @@ dmypy.json
 rllib-env/
 runs/
 wandb/
+maps_old/
