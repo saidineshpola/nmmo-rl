@@ -133,7 +133,11 @@ class Postprocessor(StatPostprocessor):
             if llog.shape[0] > 0 and llog[0][-4] > 0 and (llog[0][-5] in range(1, 5)):
                 # print('\033[93m' + 'level up log', llog,
                 #       'agent_id', self.agent_id, '\033[0m')
-                level_bonus = 0.01
+                # use switch case for llog[0][-4] >5 and <=5
+                if llog[0][-4] <= 5:
+                    level_bonus = 0.01
+                else:
+                    level_bonus = 0.02
             if give_log.shape[0] > 0 and give_log[0][-3] > 0:
                 give_bonus = 0.03
             if give_gold_log.shape[0] > 0 and give_gold_log[0][-3] > 0:
