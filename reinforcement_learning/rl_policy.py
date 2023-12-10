@@ -132,10 +132,11 @@ class TileEncoder(torch.nn.Module):
         self.multihead_attn = MultiheadAttention(
             16, 4)  # Added MultiheadAttention layer
 
-        self.tile_conv_1 = torch.nn.Conv2d(96, 64, 3)
-        self.tile_conv_2 = torch.nn.Conv2d(64, 32, 3)
-        self.tile_conv_3 = torch.nn.Conv2d(32, 16, 3)
-        self.tile_fc = torch.nn.Linear(16 * 9 * 9, input_size)
+        self.tile_conv_1 = torch.nn.Conv2d(96, 64, 3, padding=1)
+        self.tile_conv_2 = torch.nn.Conv2d(64, 64, 3, padding=1)
+        self.tile_conv_3 = torch.nn.Conv2d(64, 32, 3, padding=1)
+        self.tile_conv_4 = torch.nn.Conv2d(32, 16, 3, padding=1)
+        self.tile_fc = torch.nn.Linear(16 * 15 * 15, input_size)
         self.activation = torch.nn.ReLU()
 
     def forward(self, tile):
@@ -153,13 +154,22 @@ class TileEncoder(torch.nn.Module):
         )
 
         tile = self.activation(self.tile_conv_1(tile))
+        tile_skip_1 = tile.clone()  # Save for skip connection
+
         tile = self.activation(self.tile_conv_2(tile))
-        tile = self.activation(self.tile_conv_3(tile))  # Additional layer
+        tile += tile_skip_1  # Add skip connection
+
+        tile = self.activation(self.tile_conv_3(tile))
+        tile_skip_2 = tile.clone()  # Save for skip connection
+
+        tile = self.activation(self.tile_conv_4(tile))
+        tile += tile_skip_2  # Add skip connection
+
         # Reshape for MultiheadAttention
         tile = tile.view(tile.size(0), tile.size(1), -1).permute(2, 0, 1)
         tile, _ = self.multihead_attn(
             tile, tile, tile)  # Apply MultiheadAttention
-        tile = tile.permute(1, 2, 0).view(agents, 16, 9, 9)  # Reshape back
+        tile = tile.permute(1, 2, 0).view(agents, 16, 15, 15)  # Reshape back
         tile = tile.contiguous().view(agents, -1)
         tile = self.activation(self.tile_fc(tile))
 
