@@ -7,7 +7,7 @@ from typing import Dict
 import pufferlib
 import pufferlib.emulation
 import pufferlib.models
-from reinforcement_learning.model_util import PopArt
+
 import nmmo
 from nmmo.entity.entity import EntityState
 
@@ -30,9 +30,6 @@ class BaselineNew(pufferlib.models.Policy):
         self.proj_fc = torch.nn.Linear(5 * input_size, input_size)
         self.action_decoder = ActionDecoder(input_size, hidden_size)
         self.value_head = torch.nn.Linear(hidden_size, 1)
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
-        # self.value_head = PopArt(hidden_size, 1, device=self.device)
 
     def encode_observations(self, flat_observations):
         env_outputs = pufferlib.emulation.unpack_batched_obs(flat_observations,
@@ -75,8 +72,8 @@ class BaselineNew(pufferlib.models.Policy):
 
 class SelfAttention(torch.nn.Module):
     """
-    Implementation of Self Attention Layer from 
-    https://arxiv.org/pdf/2305.17352.pdf
+    Implementation of Self Attention Layer 
+    https://arxiv.org/abs/2305.17352
     """
 
     def __init__(self, input_size, heads=4, embed_size=32):
@@ -135,11 +132,12 @@ class TileEncoder(torch.nn.Module):
         self.multihead_attn = MultiheadAttention(
             16, 4)  # Added MultiheadAttention layer
 
-        self.tile_conv_1 = torch.nn.Conv2d(96, 64, 3)
-        self.tile_conv_2 = torch.nn.Conv2d(64, 32, 3)
-        self.tile_conv_3 = torch.nn.Conv2d(32, 16, 3)
-        self.tile_fc = torch.nn.Linear(16 * 9 * 9, input_size)
-        self.activation = torch.nn.SiLU()
+        self.tile_conv_1 = torch.nn.Conv2d(96, 32, 3, padding=1, stride=1)
+        self.tile_conv_2 = torch.nn.Conv2d(32, 32, 3, padding=1, stride=1)
+        self.tile_conv_3 = torch.nn.Conv2d(32, 16, 3, padding=1, stride=1)
+        self.tile_conv_4 = torch.nn.Conv2d(16, 16, 3, padding=1, stride=1)
+        self.tile_fc = torch.nn.Linear(16 * 15 * 15, input_size)
+        self.activation = torch.nn.ReLU()
 
     def forward(self, tile):
         tile[:, :, :2] -= tile[:, 112:113, :2].clone()
@@ -156,13 +154,22 @@ class TileEncoder(torch.nn.Module):
         )
 
         tile = self.activation(self.tile_conv_1(tile))
+        tile_skip_1 = tile.clone()  # Save for skip connection
+
         tile = self.activation(self.tile_conv_2(tile))
-        tile = self.activation(self.tile_conv_3(tile))  # Additional layer
+        tile = tile + tile_skip_1  # Add skip connection
+
+        tile = self.activation(self.tile_conv_3(tile))
+        tile_skip_2 = tile.clone()  # Save for skip connection
+
+        tile = self.activation(self.tile_conv_4(tile))
+        tile = tile + tile_skip_2  # Add skip connection
+
         # Reshape for MultiheadAttention
         tile = tile.view(tile.size(0), tile.size(1), -1).permute(2, 0, 1)
         tile, _ = self.multihead_attn(
             tile, tile, tile)  # Apply MultiheadAttention
-        tile = tile.permute(1, 2, 0).view(agents, 16, 9, 9)  # Reshape back
+        tile = tile.permute(1, 2, 0).view(agents, 16, 15, 15)  # Reshape back
         tile = tile.contiguous().view(agents, -1)
         tile = self.activation(self.tile_fc(tile))
 
@@ -204,7 +211,7 @@ class PlayerEncoder(torch.nn.Module):
         # Project to input of recurrent size
         agent_embeddings = self.agent_fc(agent_embeddings)
         my_agent_embeddings = self.my_agent_fc(my_agent_embeddings)
-        my_agent_embeddings = F.silu(my_agent_embeddings)
+        my_agent_embeddings = F.relu(my_agent_embeddings)
 
         return agent_embeddings, my_agent_embeddings
 
@@ -305,15 +312,6 @@ class ActionDecoder(torch.nn.Module):
         )
         self.attn = SelfAttention(hidden_size, 4, hidden_size//4)
         self.fc = torch.nn.Linear(hidden_size * 2, hidden_size)
-        self.rnn = torch.nn.LSTM(
-            input_size=hidden_size,
-            hidden_size=hidden_size,
-            num_layers=5,
-            batch_first=True,
-        )
-        self.prev_player_states = None
-        self.prev_inventory_states = None
-        self.prev_hidden_states = None
 
     def apply_layer(self, layer, embeddings, mask, hidden):
         hidden = layer(hidden)
@@ -340,35 +338,11 @@ class ActionDecoder(torch.nn.Module):
         player_embeddings_before = player_embeddings.clone()
         inventory_embeddings_before = inventory_embeddings.clone()
         hidden_before = hidden.clone()
-        hidden = hidden.unsqueeze(1)
-        # Check for the prev states shape
-        if self.prev_player_states is None or self.prev_player_states[0].shape != (self.rnn.num_layers, player_embeddings.shape[0], self.rnn.hidden_size):
-            h_0 = torch.zeros(
-                self.rnn.num_layers, player_embeddings.shape[0], self.rnn.hidden_size, device=player_embeddings.device)
-            c_0 = torch.zeros(
-                self.rnn.num_layers, player_embeddings.shape[0], self.rnn.hidden_size, device=player_embeddings.device)
-            self.prev_player_states = (h_0, c_0)
-        if self.prev_inventory_states is None or self.prev_inventory_states[0].shape != (self.rnn.num_layers, inventory_embeddings.shape[0], self.rnn.hidden_size):
-            h_0 = torch.zeros(
-                self.rnn.num_layers, inventory_embeddings.shape[0], self.rnn.hidden_size, device=inventory_embeddings.device)
-            c_0 = torch.zeros(
-                self.rnn.num_layers, inventory_embeddings.shape[0], self.rnn.hidden_size, device=inventory_embeddings.device)
-            self.prev_inventory_states = (h_0, c_0)
-        if self.prev_hidden_states is None or self.prev_hidden_states[0].shape != (self.rnn.num_layers, hidden.shape[0], self.rnn.hidden_size):
-            h_0 = torch.zeros(
-                self.rnn.num_layers, hidden.shape[0], self.rnn.hidden_size, device=hidden.device)
-            c_0 = torch.zeros(
-                self.rnn.num_layers, hidden.shape[0], self.rnn.hidden_size, device=hidden.device)
-            self.prev_hidden_states = (h_0, c_0)
-        player_embeddings, self.prev_player_states = self.rnn(
-            player_embeddings, self.prev_player_states)
-        inventory_embeddings, self.prev_inventory_states = self.rnn(
-            inventory_embeddings, self.prev_inventory_states)
+        hidden = hidden.unsqueeze(1)  # make it 3d shape for self attn
 
         player_embeddings = self.attn(player_embeddings)
         inventory_embeddings = self.attn(inventory_embeddings)
-        hidden, self.prev_hidden_states = self.rnn(
-            hidden, self.prev_hidden_states)
+
         hidden = self.attn(hidden)
         hidden = hidden.squeeze(1)
         # Concat before and after attention and use MLP (advise communicaion) to get same shape as before
@@ -422,11 +396,4 @@ class ActionDecoder(torch.nn.Module):
 
             action = self.apply_layer(layer, embs, mask, hidden)
             actions.append(action)
-        # detach the prev states
-        self.prev_player_states = (
-            self.prev_player_states[0].detach(), self.prev_player_states[1].detach())
-        self.prev_inventory_states = (
-            self.prev_inventory_states[0].detach(), self.prev_inventory_states[1].detach())
-        self.prev_hidden_states = (
-            self.prev_hidden_states[0].detach(), self.prev_hidden_states[1].detach())
         return actions

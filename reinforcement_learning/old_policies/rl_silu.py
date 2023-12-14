@@ -7,7 +7,7 @@ from typing import Dict
 import pufferlib
 import pufferlib.emulation
 import pufferlib.models
-from reinforcement_learning.model_util import PopArt
+
 import nmmo
 from nmmo.entity.entity import EntityState
 
@@ -30,9 +30,6 @@ class BaselineNew(pufferlib.models.Policy):
         self.proj_fc = torch.nn.Linear(5 * input_size, input_size)
         self.action_decoder = ActionDecoder(input_size, hidden_size)
         self.value_head = torch.nn.Linear(hidden_size, 1)
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
-        # self.value_head = PopArt(hidden_size, 1, device=self.device)
 
     def encode_observations(self, flat_observations):
         env_outputs = pufferlib.emulation.unpack_batched_obs(flat_observations,

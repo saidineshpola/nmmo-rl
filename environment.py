@@ -96,19 +96,24 @@ class Postprocessor(StatPostprocessor):
         if self.agent_id in self.env.realm.players:
             if self.env.realm.players[self.agent_id].resources.health_restore > 0:
                 healing_bonus = self.heal_bonus_weight
+            # TODO Add equip/harvest weapon bonus based on level improvement
+            # if self.env.realm.players[self.agent_id].inventory:
+            #     print('\033[93m' + 'inventory log', self.env.realm.players[self.agent_id].ration_consumed,
+            #           'agent_id', self.agent_id, '\033[0m')
 
         # Attacking bonus
-        attack_bonus = 0
-        gold_bonus = 0  # GoldBonus
+        attack_bonus = 0  # 0.0004
+        gold_bonus = 0
         harvest_bonus = 0
         give_bonus = 0
         level_bonus = 0
+        equip_bonus = 0
         if self.agent_id in self.env.realm.players:
-            log = self.env.realm.event_log.get_data(agents=[self.agent_id],
-                                                    event_code=EventCode.PLAYER_KILL,
-                                                    tick=self.env.realm.tick)
-            if log.shape[0] > 0 and log[0][-1] > 0:
-                attack_bonus = self.attack_bonus_weight
+            attack_log = self.env.realm.event_log.get_data(agents=[self.agent_id],
+                                                           event_code=EventCode.PLAYER_KILL,
+                                                           tick=self.env.realm.tick)
+            if attack_log.shape[0] > 0 and attack_log[0][-1] > 0:
+                attack_bonus = 0.00056
 
             # log = self.env.realm.event_log.get_data(agents=[self.agent_id],
             #                                         event_code=EventCode.EARN_GOLD,
@@ -129,11 +134,11 @@ class Postprocessor(StatPostprocessor):
             give_gold_log = self.env.realm.event_log.get_data(agents=[self.agent_id],
                                                               event_code=EventCode.GIVE_GOLD,
                                                               tick=self.env.realm.tick)
+            # equipment_log = self.env.realm.event_log.get_data(agents=[self.agent_id],
+            #                                                   event_code=EventCode.EQUIP_ITEM,
+            #                                                   tick=self.env.realm.tick)
             # Combat, Fishing  Skills
             if llog.shape[0] > 0 and llog[0][-4] > 0 and (llog[0][-5] in range(1, 5)):
-                # print('\033[93m' + 'level up log', llog,
-                #       'agent_id', self.agent_id, '\033[0m')
-                # use switch case for llog[0][-4] >5 and <=5
                 if llog[0][-4] <= 5:
                     level_bonus = 0.01
                 else:
@@ -144,6 +149,11 @@ class Postprocessor(StatPostprocessor):
                 give_bonus = 0.03
             if harvest_log.shape[0] > 0 and harvest_log[0][-3] > 0:
                 harvest_bonus = 0.01
+            # if equipment_log.shape[0] > 0 and equipment_log[0][-3] > 0:
+            #     if equipment_log[0][-3] in range(1, 3):
+            #         equip_bonus = 0.005*equipment_log[0][-3]
+            #     else:
+            #         equip_bonus = 0.01*equipment_log[0][-3]
 
         # Add meandering bonus to encourage moving to various directions
         meander_bonus = 0
@@ -164,7 +174,7 @@ class Postprocessor(StatPostprocessor):
 
         reward = reward + explore_bonus + healing_bonus + \
             meander_bonus + attack_bonus + gold_bonus + \
-            harvest_bonus+level_bonus + give_bonus
+            harvest_bonus+level_bonus + give_bonus + equip_bonus
 
         return reward, done, info
 

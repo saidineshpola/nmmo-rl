@@ -2,16 +2,101 @@ from torch.nn import MultiheadAttention
 import argparse
 import torch
 import torch.nn.functional as F
+import torch.nn as nn
 from typing import Dict
-
+from reinforcement_learning.model_util import ResNeXt29_2x64d
 import pufferlib
 import pufferlib.emulation
 import pufferlib.models
-from reinforcement_learning.model_util import PopArt
+
 import nmmo
 from nmmo.entity.entity import EntityState
 
 EntityId = EntityState.State.attr_name_to_col["id"]
+
+
+class Block(nn.Module):
+    '''Grouped convolution block.'''
+    expansion = 2
+
+    def __init__(self, in_planes, cardinality=32, bottleneck_width=4, stride=1):
+        super(Block, self).__init__()
+        group_width = cardinality * bottleneck_width
+        self.conv1 = nn.Conv2d(in_planes, group_width,
+                               kernel_size=1, bias=False)
+
+        self.conv2 = nn.Conv2d(group_width, group_width, kernel_size=3, stride=stride, padding=1, groups=cardinality,
+                               bias=False)
+
+        self.conv3 = nn.Conv2d(
+            group_width, self.expansion * group_width, kernel_size=1, bias=False)
+
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_planes != self.expansion * group_width:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_planes, self.expansion * group_width,
+                          kernel_size=1, stride=stride, bias=False)
+            )
+
+    def forward(self, x):
+        out = F.relu((self.conv1(x)))
+        out = F.relu((self.conv2(out)))
+        out = (self.conv3(out))
+        out += self.shortcut(x)
+        out = F.relu(out)
+        return out
+
+
+class ResNeXt(nn.Module):
+    def __init__(self, num_blocks, cardinality, bottleneck_width, num_classes=256):
+        super(ResNeXt, self).__init__()
+        self.cardinality = cardinality
+        self.bottleneck_width = bottleneck_width
+        self.in_planes = 64
+
+        self.conv1 = nn.Conv2d(96, 64, kernel_size=1, bias=False)
+
+        self.layer1 = self._make_layer(num_blocks[0], 1)
+        self.layer2 = self._make_layer(num_blocks[1], 2)
+        self.layer3 = self._make_layer(num_blocks[2], 2)
+        # self.layer4 = self._make_layer(num_blocks[3], 2)
+
+        # self.linear = nn.Linear(cardinality*bottleneck_width*8, num_classes)
+        # self.linear = nn.Linear(3840, num_classes)
+        self.activation = torch.nn.ReLU()
+        self.sig = nn.Sigmoid()
+
+    def _make_layer(self, num_blocks, stride):
+        strides = [stride] + [1] * (num_blocks - 1)
+        layers = []
+        for stride in strides:
+            layers.append(Block(self.in_planes, self.cardinality,
+                          self.bottleneck_width, stride))
+            self.in_planes = Block.expansion * self.cardinality * self.bottleneck_width
+        # Increase bottleneck_width by 2 after each stage.
+        self.bottleneck_width *= 2
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        out = F.relu((self.conv1(x)))
+        out = self.layer1(out)
+        out = self.layer2(out)
+        out = self.layer3(out)
+        # out = self.layer4(out)
+        out = F.avg_pool2d(out, 4)
+        out = out.view(x.size(0), -1)
+        # print (out.data.shape)
+        out = self.activation(out)
+        # out = F.log_softmax(out)
+        # out = self.sig(out)
+        return out
+
+
+def ResNeXt29_2x64d():
+    """
+    https://www.kaggle.com/code/solomonk/pytorch-resnext-cnn-end-to-end-lb-0-65?scriptVersionId=1872910&cellId=2
+    """
+    return ResNeXt(num_blocks=[1, 1, 1], cardinality=4, bottleneck_width=8)
 
 
 class BaselineNew(pufferlib.models.Policy):
@@ -30,9 +115,6 @@ class BaselineNew(pufferlib.models.Policy):
         self.proj_fc = torch.nn.Linear(5 * input_size, input_size)
         self.action_decoder = ActionDecoder(input_size, hidden_size)
         self.value_head = torch.nn.Linear(hidden_size, 1)
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
-        # self.value_head = PopArt(hidden_size, 1, device=self.device)
 
     def encode_observations(self, flat_observations):
         env_outputs = pufferlib.emulation.unpack_batched_obs(flat_observations,
@@ -75,8 +157,8 @@ class BaselineNew(pufferlib.models.Policy):
 
 class SelfAttention(torch.nn.Module):
     """
-    Implementation of Self Attention Layer from 
-    https://arxiv.org/pdf/2305.17352.pdf
+    Implementation of Self Attention Layer 
+    https://arxiv.org/abs/2305.17352
     """
 
     def __init__(self, input_size, heads=4, embed_size=32):
@@ -132,14 +214,10 @@ class TileEncoder(torch.nn.Module):
         self.tile_offset = torch.tensor([i * 256 for i in range(3)])
         self.embedding = torch.nn.Embedding(3 * 256, 32)
 
-        self.multihead_attn = MultiheadAttention(
-            16, 4)  # Added MultiheadAttention layer
-
-        self.tile_conv_1 = torch.nn.Conv2d(96, 64, 3)
-        self.tile_conv_2 = torch.nn.Conv2d(64, 32, 3)
-        self.tile_conv_3 = torch.nn.Conv2d(32, 16, 3)
-        self.tile_fc = torch.nn.Linear(16 * 9 * 9, input_size)
-        self.activation = torch.nn.SiLU()
+        # self.multihead_attn = MultiheadAttention(
+        #     16, 4)  # Added MultiheadAttention layer
+        self.conv_model = ResNeXt29_2x64d()
+        self.activation = torch.nn.ReLU()
 
     def forward(self, tile):
         tile[:, :, :2] -= tile[:, 112:113, :2].clone()
@@ -155,16 +233,15 @@ class TileEncoder(torch.nn.Module):
             .view(agents, features * embed, 15, 15)
         )
 
-        tile = self.activation(self.tile_conv_1(tile))
-        tile = self.activation(self.tile_conv_2(tile))
-        tile = self.activation(self.tile_conv_3(tile))  # Additional layer
+        tile = self.conv_model(tile)
+
         # Reshape for MultiheadAttention
-        tile = tile.view(tile.size(0), tile.size(1), -1).permute(2, 0, 1)
-        tile, _ = self.multihead_attn(
-            tile, tile, tile)  # Apply MultiheadAttention
-        tile = tile.permute(1, 2, 0).view(agents, 16, 9, 9)  # Reshape back
-        tile = tile.contiguous().view(agents, -1)
-        tile = self.activation(self.tile_fc(tile))
+        # tile = tile.view(tile.size(0), tile.size(1), -1).permute(2, 0, 1)
+        # tile, _ = self.multihead_attn(
+        #     tile, tile, tile)  # Apply MultiheadAttention
+        # tile = tile.permute(1, 2, 0).view(agents, 16, 15, 15)  # Reshape back
+        # tile = tile.contiguous().view(agents, -1)
+        # tile = self.activation(self.tile_fc(tile))
 
         return tile
 
@@ -204,7 +281,7 @@ class PlayerEncoder(torch.nn.Module):
         # Project to input of recurrent size
         agent_embeddings = self.agent_fc(agent_embeddings)
         my_agent_embeddings = self.my_agent_fc(my_agent_embeddings)
-        my_agent_embeddings = F.silu(my_agent_embeddings)
+        my_agent_embeddings = F.relu(my_agent_embeddings)
 
         return agent_embeddings, my_agent_embeddings
 
@@ -305,15 +382,6 @@ class ActionDecoder(torch.nn.Module):
         )
         self.attn = SelfAttention(hidden_size, 4, hidden_size//4)
         self.fc = torch.nn.Linear(hidden_size * 2, hidden_size)
-        self.rnn = torch.nn.LSTM(
-            input_size=hidden_size,
-            hidden_size=hidden_size,
-            num_layers=5,
-            batch_first=True,
-        )
-        self.prev_player_states = None
-        self.prev_inventory_states = None
-        self.prev_hidden_states = None
 
     def apply_layer(self, layer, embeddings, mask, hidden):
         hidden = layer(hidden)
@@ -340,35 +408,11 @@ class ActionDecoder(torch.nn.Module):
         player_embeddings_before = player_embeddings.clone()
         inventory_embeddings_before = inventory_embeddings.clone()
         hidden_before = hidden.clone()
-        hidden = hidden.unsqueeze(1)
-        # Check for the prev states shape
-        if self.prev_player_states is None or self.prev_player_states[0].shape != (self.rnn.num_layers, player_embeddings.shape[0], self.rnn.hidden_size):
-            h_0 = torch.zeros(
-                self.rnn.num_layers, player_embeddings.shape[0], self.rnn.hidden_size, device=player_embeddings.device)
-            c_0 = torch.zeros(
-                self.rnn.num_layers, player_embeddings.shape[0], self.rnn.hidden_size, device=player_embeddings.device)
-            self.prev_player_states = (h_0, c_0)
-        if self.prev_inventory_states is None or self.prev_inventory_states[0].shape != (self.rnn.num_layers, inventory_embeddings.shape[0], self.rnn.hidden_size):
-            h_0 = torch.zeros(
-                self.rnn.num_layers, inventory_embeddings.shape[0], self.rnn.hidden_size, device=inventory_embeddings.device)
-            c_0 = torch.zeros(
-                self.rnn.num_layers, inventory_embeddings.shape[0], self.rnn.hidden_size, device=inventory_embeddings.device)
-            self.prev_inventory_states = (h_0, c_0)
-        if self.prev_hidden_states is None or self.prev_hidden_states[0].shape != (self.rnn.num_layers, hidden.shape[0], self.rnn.hidden_size):
-            h_0 = torch.zeros(
-                self.rnn.num_layers, hidden.shape[0], self.rnn.hidden_size, device=hidden.device)
-            c_0 = torch.zeros(
-                self.rnn.num_layers, hidden.shape[0], self.rnn.hidden_size, device=hidden.device)
-            self.prev_hidden_states = (h_0, c_0)
-        player_embeddings, self.prev_player_states = self.rnn(
-            player_embeddings, self.prev_player_states)
-        inventory_embeddings, self.prev_inventory_states = self.rnn(
-            inventory_embeddings, self.prev_inventory_states)
+        hidden = hidden.unsqueeze(1)  # make it 3d shape for self attn
 
         player_embeddings = self.attn(player_embeddings)
         inventory_embeddings = self.attn(inventory_embeddings)
-        hidden, self.prev_hidden_states = self.rnn(
-            hidden, self.prev_hidden_states)
+
         hidden = self.attn(hidden)
         hidden = hidden.squeeze(1)
         # Concat before and after attention and use MLP (advise communicaion) to get same shape as before
@@ -422,11 +466,4 @@ class ActionDecoder(torch.nn.Module):
 
             action = self.apply_layer(layer, embs, mask, hidden)
             actions.append(action)
-        # detach the prev states
-        self.prev_player_states = (
-            self.prev_player_states[0].detach(), self.prev_player_states[1].detach())
-        self.prev_inventory_states = (
-            self.prev_inventory_states[0].detach(), self.prev_inventory_states[1].detach())
-        self.prev_hidden_states = (
-            self.prev_hidden_states[0].detach(), self.prev_hidden_states[1].detach())
         return actions

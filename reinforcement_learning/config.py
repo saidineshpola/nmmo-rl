@@ -13,17 +13,17 @@ class Config:
     # record_loss = False  # log all minibatch loss and actions, for debugging
 
     # Trainer Args
-    seed = 9
+    seed = 768
     num_cores = None  # Number of cores to use for training
     num_envs = 6  # Number of environments to use for training
     num_buffers = 2  # Number of buffers to use for training
     rollout_batch_size = 2**15  # Number of steps to rollout
     eval_batch_size = 2**15  # Number of steps to rollout for eval
-    train_num_steps = 10_000_000  # 10_000_000  # Number of steps to train
+    train_num_steps = 12_000_000  # 10_000_000  # Number of steps to train
     eval_num_steps = 1_000_000  # 1_000_000  # Number of steps to evaluate
-    checkpoint_interval = 5_000_000  # Interval to save models
+    checkpoint_interval = 100  # epochs  # Interval to save models
     # f"nmmo_{time.strftime('%Y%m%d_%H%M%S')}_{seed}"  # Run name
-    run_name = f"nmmo_rp_cr_attn_lstm_seed{seed}_exp17"
+    run_name = f"nmmo_cr_ls_si_att_EQUIP_seed{seed}_exp21"
     runs_dir = "./runs"  # Directory for runs
     policy_store_dir = None  # Policy store directory
     use_serial_vecenv = False  # Use serial vecenv implementation
@@ -60,8 +60,8 @@ class Config:
     heal_bonus_weight = 0.03
     meander_bonus_weight = 0.02
     explore_bonus_weight = 0.01
-    gold_bonus_weight = 0  # 0.002
-    attack_bonus_weight = 0  # 0.03 added
+    gold_bonus_weight = 0  # 0.0002
+    attack_bonus_weight = 0  # 0.0003 added
     spawn_immunity = 20
 
     # Policy Args

@@ -12,3 +12,12 @@ Task_AttainSkill_(skill:Mage_level:10_num_agent:1)_reward_to:agent,0,0.033854166
 Task_AttainSkill_(skill:Range_level:10_num_agent:1)_reward_to:agent,0,0.03732638888888889,
 Task_AttainSkill_(skill:Fishing_level:10_num_agent:1)_reward_to:agent,0,0.044270833333333336,
 Task_AttainSkill_(skill:Herbalism_level:10_num_agent:1)_reward_to:agent,0,0.03298611111111111,
+Task_CountEvent_(event:PLAYER_KILL_N:10)_reward_to:agent,38,0.48750000000000004,233.39473684210526
+Task_CountEvent_(event:GIVE_GOLD_N:10)_reward_to:agent,0,0.028125,
+Task_CountEvent_(event:HARVEST_ITEM_N:10)_reward_to:agent,37,0.42187499999999994,232.24324324324326
+Task_CountEvent_(event:CONSUME_ITEM_N:10)_reward_to:agent,5,0.14296875,730.4
+Task_AttainSkill_(skill:Fishing_level:10_num_agent:1)_reward_to:agent,0,0.052951388888888895,
+Task_AttainSkill_(skill:Herbalism_level:10_num_agent:1)_reward_to:agent,0,0.026041666666666664,
+Task_AttainSkill_(skill:Prospecting_level:10_num_agent:1)_reward_to:agent,0,0.014756944444444444,
+Task_AttainSkill_(skill:Mage_level:10_num_agent:1)_reward_to:agent,0,0.042534722222222224,
+Task_AttainSkill_(skill:Range_level:10_num_agent:1)_reward_to:agent,0,0.04079861111111111,
