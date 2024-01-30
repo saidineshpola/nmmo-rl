@@ -15,7 +15,7 @@ class Config:
     # Trainer Args
     seed = 768
     num_cores = None  # Number of cores to use for training
-    num_envs = 6  # Number of environments to use for training
+    num_envs = 8  # Number of environments to use for training
     num_buffers = 2  # Number of buffers to use for training
     rollout_batch_size = 2**15  # Number of steps to rollout
     eval_batch_size = 2**15  # Number of steps to rollout for eval
