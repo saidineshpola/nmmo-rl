@@ -1,6 +1,6 @@
 ## Running the Script
 
-To run the `train.py` script, navigate to the directory containing the script and run the following command with Config from renforcmentlearning/config.py:
+To run the `train.py` script, navigate to the directory containing the script and run the following command with Config from reinforcement_learning/config.pyconfig.py:
 
 ```bash
 python train.py
