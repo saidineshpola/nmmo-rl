@@ -4,6 +4,7 @@ To run the `train.py` script, navigate to the directory containing the script an
 
 ```bash
 python train.py
+```
 
 ![figure](https://neuralmmo.github.io/_static/banner.png)
 
