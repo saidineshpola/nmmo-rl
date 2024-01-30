@@ -7,7 +7,7 @@ from typing import Dict
 import pufferlib
 import pufferlib.emulation
 import pufferlib.models
-from reinforcement_learning.model_util import PopArt
+#from reinforcement_learning.model_util import PopArt
 import nmmo
 from nmmo.entity.entity import EntityState
 
