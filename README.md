@@ -27,6 +27,8 @@ In the "results" folder, you can find the following images:
 3. **Multihead Attention Communication Channel between Agents**:
    - ![Multihead Attention](results/mha_advising_sd.png)
    - Description: This is the communication channel between agents using multihead attention mechanism.
+## Credits
+1. [nmmo baseline](https://github.com/CarperAI/nmmo-baselines)
 
 
 
