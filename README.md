@@ -21,5 +21,8 @@ In the "results" folder, you can find the following images:
    - ![Multihead Attention](results/mha_advising_sd.png)
    - Description: This is the communication channel between agents using multihead attention mechanism.
 
+3. **Visual Tile for Each Agent in NMMO Grid**:
+   - ![Tile Encoder](results/tile-encoder.png)
+   - Description: This image represents the visual tile for each agent in the Neural MMO grid, providing insights into the spatial representation of the environment.
 
 
