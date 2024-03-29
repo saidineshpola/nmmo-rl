@@ -10,7 +10,7 @@ python train.py
 
 # ![icon](https://neuralmmo.github.io/_build/html/_images/icon.png) Welcome to the Platform!
 ## Experiment Tracking
-
+- <img src="results/W&B_nmmo.png" alt="Task Completion Plot" width="800"/>
 To track the progress of our experiments and view detailed metrics, visit our experiment tracking dashboard on [Weights & Biases](https://wandb.ai/saidineshpola/nmo_baseline_ppo?nw=nwusersaidineshpola).
 ## Results
 
