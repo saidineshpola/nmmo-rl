@@ -27,9 +27,11 @@ In the "results" folder, you can find the following images:
 3. **Multihead Attention Communication Channel between Agents**:
    - ![Multihead Attention](results/mha_advising_sd.png)
    - Description: This is the communication channel between agents using multihead attention mechanism.
+     
 ## Credits
-1. [nmmo baseline](https://github.com/CarperAI/nmmo-baselines)
-
+1. The foundational work and inspiration for this project came from the [nmmo baseline](https://github.com/CarperAI/nmmo-baselines)
+2. We drew multi head attention communication insights and ideas from the research paper [Is Centralized Training with Decentralized Execution
+Framework Centralized Enough for MARL?](https://arxiv.org/pdf/2305.17352.pdf)
 
 
 
