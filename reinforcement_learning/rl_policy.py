@@ -120,9 +120,6 @@ class SelfAttention(torch.nn.Module):
         self.dot = dot
         out = torch.bmm(dot, values).view(b, h, t, e)
         out = out.transpose(1, 2).contiguous().view(b, t, h * e)
-        values = values.view(b, h, t, e)
-        values = values.transpose(1, 2).contiguous().view(b, t, h * e)
-        self.values = values
         return out
 
 
